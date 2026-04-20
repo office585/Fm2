@@ -1,0 +1,26 @@
+name: Fmatrac Daily Export
+on:
+  schedule:
+    - cron: '0 3 * * *' # Reggel 5:00 Budapest (nyári idő)
+  workflow_dispatch: # Így kézzel is elindíthatod bármikor
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Dependencies
+        run: |
+          pip install playwright openpyxl
+          playwright install chromium
+          
+      - name: Run Script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+        run: python szamlazz_script.py
