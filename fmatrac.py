@@ -8,13 +8,9 @@ from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 
 def run_fmatrac_logic():
-    # GitHub-on nincs popup, ezért automatikusan az elmúlt 1 napot nézzük
-    # Vagy beállíthatsz fix kezdődátumot is
+    # Automatikusan az előző 1 napot nézzük
     end_date = datetime.now()
     start_date = end_date - timedelta(days=1) 
-    
-    start_str = start_date.strftime("%Y-%m-%d")
-    end_str = end_date.strftime("%Y-%m-%d")
     
     output_file = f"fmatrac_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     
@@ -23,24 +19,25 @@ def run_fmatrac_logic():
     ws.title = "adatok"
     ws.append(["Dátum", "Oszlop 1", "Oszlop 2", "Oszlop 3"])
 
+    # Belépési adatok (Fixen a kódban)
     email_login = "buki.bertold@mavericklodges.com"
     password_login = "Abc123"
 
     try:
         with sync_playwright() as p:
-            # GitHub-on headless=True kell!
+            # GitHub runneren headless=True kötelező
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
 
             page.goto("https://maverick-athenaeum.felhomatrac.com/")
 
-            # LOGIN
+            # LOGIN folyamat
             page.fill("#user", email_login)
             page.fill("#pwd", password_login)
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
-            # NAVIGÁCIÓ
+            # NAVIGÁCIÓ a menüben
             page.locator("a.nav-link.dropdown-toggle", has_text="Beállítások").click()
             page.locator('a.dropdown-item', has_text="MEWS Számlázás").click()
             page.wait_for_load_state("networkidle")
@@ -53,20 +50,21 @@ def run_fmatrac_logic():
                 date_input = page.locator("#billingDate")
                 date_input.wait_for(state="visible")
 
-                # Előző adat mentése ellenőrzéshez
+                # Régi adat mentése, hogy tudjuk, mikor frissült az oldal
                 first_row_locator = page.locator('div.row.size11.list-row div.col-2').first
                 old_date_text = first_row_locator.inner_text().strip() if first_row_locator.count() > 0 else ""
 
+                # Dátum beírása
                 date_input.click()
                 page.keyboard.press("Control+A")
                 page.keyboard.press("Backspace")
                 page.keyboard.type(date_str)
                 page.keyboard.press("Enter")
 
-                # Félrekattintás az aktiváláshoz
+                # Aktiváló kattintás
                 page.locator('div.size14.b.lh30', has_text="Számlázás Monitoring").click()
 
-                # Várakozás a frissülésre
+                # Várakozás az új adatokra
                 try:
                     page.wait_for_function(
                         f'() => {{ const el = document.querySelector("div.row.size11.list-row div.col-2"); return !el || el.innerText.strip() !== "{old_date_text}"; }}',
@@ -76,7 +74,7 @@ def run_fmatrac_logic():
 
                 time.sleep(1)
 
-                # Adatmentés
+                # Adatok kimentése Excelbe
                 rows = page.locator('div.row.size11.list-row')
                 if rows.count() == 0:
                     ws.append([date_str, "NINCS ADAT", "", ""])
@@ -98,6 +96,7 @@ def run_fmatrac_logic():
         return None
 
 def send_email(file_path):
+    # Secrets-ből olvasott adatok az e-mail küldéshez
     email_user = os.environ.get('EMAIL_USER')
     email_pass = os.environ.get('EMAIL_PASS')
     recipient = os.environ.get('EMAIL_RECIPIENT')
@@ -106,17 +105,18 @@ def send_email(file_path):
     msg['Subject'] = f'FMATRAC Napi Riport - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = email_user
     msg['To'] = recipient
-    msg.set_content("Szia!\n\nMellékelten küldöm a fmatrac rendszerből kinyert adatokat.")
+    msg.set_content("Szia!\n\nMellékelten küldöm a fmatrac rendszerből kinyert napi adatokat.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=file_path)
 
+    # Küldés Gmailen keresztül
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(email_user, email_pass)
         smtp.send_message(msg)
-    print("Email elküldve.")
+    print("Email sikeresen elküldve.")
 
 if __name__ == "__main__":
-    file = run_fmatrac_logic()
-    if file:
-        send_email(file)
+    generated_file = run_fmatrac_logic()
+    if generated_file:
+        send_email(generated_file)
