@@ -1,8 +1,8 @@
 name: Fmatrac Daily Export
 on:
   schedule:
-    - cron: '0 3 * * *' # Minden reggel 5:00-kor (Budapest, nyári idő)
-  workflow_dispatch: # Így kézzel is elindíthatod bármikor tesztelni
+    - cron: '5 0 * * *' # Minden nap éjfél után 5 perccel (UTC)
+  workflow_dispatch: 
 
 jobs:
   scrape:
@@ -18,11 +18,10 @@ jobs:
       - name: Playwright és függőségek telepítése
         run: |
           pip install playwright openpyxl
-          playwright install chromium
+          playwright install --with-deps chromium # Hozzáadtam a --with-deps-et a stabilitásért
           
       - name: Az fmatrac script futtatása
         env:
-          # Ezeket a GitHub Settings -> Secrets menüben kell megadnod
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
