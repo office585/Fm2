@@ -18,11 +18,26 @@ jobs:
       - name: Playwright és függőségek telepítése
         run: |
           pip install playwright openpyxl
-          playwright install --with-deps chromium # Hozzáadtam a --with-deps-et a stabilitásért
+          playwright install --with-deps chromium
           
       - name: Az fmatrac script futtatása
         env:
+          # E-mail adatok
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          
+          # Bejelentkezési adatok a 6 céghez
+          LOGIN_0: ${{ secrets.LOGIN_0 }}
+          PASS_0: ${{ secrets.PASS_0 }}
+          LOGIN_1: ${{ secrets.LOGIN_1 }}
+          PASS_1: ${{ secrets.PASS_1 }}
+          LOGIN_2: ${{ secrets.LOGIN_2 }}
+          PASS_2: ${{ secrets.PASS_2 }}
+          LOGIN_3: ${{ secrets.LOGIN_3 }}
+          PASS_3: ${{ secrets.PASS_3 }}
+          LOGIN_4: ${{ secrets.LOGIN_4 }}
+          PASS_4: ${{ secrets.PASS_4 }}
+          LOGIN_5: ${{ secrets.LOGIN_5 }}
+          PASS_5: ${{ secrets.PASS_5 }}
         run: python fmatrac.py
