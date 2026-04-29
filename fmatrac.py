@@ -6,12 +6,13 @@ from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 import time
 
-def run_fmatrac_logic(company_name, login_user, login_pass):
+def run_fmatrac_logic(company_name, url, login_user, login_pass):
     now = datetime.now()
     start_date = datetime(now.year, 1, 1)
     end_date = now
     
-    print(f"\n--- {company_name} feldolgozása kezdődik ---")
+    print(f"\n--- {company_name} feldolgozása ---")
+    print(f"Cél URL: {url}")
     
     safe_name = company_name.replace(" ", "_").lower()
     output_file = f"fmatrac_{safe_name}_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -27,7 +28,7 @@ def run_fmatrac_logic(company_name, login_user, login_pass):
             context = browser.new_context(viewport={'width': 1280, 'height': 800})
             page = context.new_page()
 
-            page.goto("https://maverick-athenaeum.felhomatrac.com/")
+            page.goto(url)
 
             # LOGIN
             page.fill("#user", login_user)
@@ -55,9 +56,8 @@ def run_fmatrac_logic(company_name, login_user, login_pass):
 
                 page.locator('div.size14.b.lh30', has_text="Számlázás Monitoring").click()
                 
-                time.sleep(1.5) # Biztonsági várakozás a frissülésre
+                time.sleep(1.5)
 
-                # Adatmentés
                 rows = page.locator('div.row.size11.list-row')
                 if rows.count() == 0:
                     ws.append([date_str, "NINCS ADAT", "", ""])
@@ -78,16 +78,15 @@ def run_fmatrac_logic(company_name, login_user, login_pass):
         print(f"Hiba a(z) {company_name} futtatása során: {e}")
         return None, company_name
 
-def send_email(file_path, company_name):
+def send_email(file_path, company_name, recipient_email):
     email_user = os.environ.get('EMAIL_USER')
     email_pass = os.environ.get('EMAIL_PASS')
-    recipient = os.environ.get('EMAIL_RECIPIENT')
 
     msg = EmailMessage()
     msg['Subject'] = f'FMATRAC Riport - {company_name} - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = email_user
-    msg['To'] = recipient
-    msg.set_content(f"Szia!\n\nMellékelten küldöm a(z) {company_name} adatait év elejétől a mai napig.")
+    msg['To'] = recipient_email
+    msg.set_content(f"Szia!\n\nMellékelten küldöm a(z) {company_name} kinyert adatait.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=file_path)
@@ -95,17 +94,19 @@ def send_email(file_path, company_name):
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(email_user, email_pass)
         smtp.send_message(msg)
-    print(f"Email elküldve: {company_name}")
+    print(f"E-mail elküldve: {company_name} -> {recipient_email}")
 
 if __name__ == "__main__":
-    # Az ÖSSZES cég listája (eredeti + 5 új)
+    # Központi címzett betöltése
+    target_email = os.environ.get('EMAIL_RECIPIENT')
+
     companies = [
-        {"name": "Maverick Athenaeum",           "user_env": "LOGIN_0", "pass_env": "PASS_0"}, # Ez volt az eddigi
-        {"name": "Maverick Downtown Apartment", "user_env": "LOGIN_1", "pass_env": "PASS_1"},
-        {"name": "Maverick Budapest Soho",       "user_env": "LOGIN_2", "pass_env": "PASS_2"},
-        {"name": "Giselle Vintage Doubles",      "user_env": "LOGIN_3", "pass_env": "PASS_3"},
-        {"name": "Maverick Central Market",      "user_env": "LOGIN_4", "pass_env": "PASS_4"},
-        {"name": "Giselle Buda Castle",          "user_env": "LOGIN_5", "pass_env": "PASS_5"},
+        {"name": "Maverick Athenaeum", "url": "https://maverick-athenaeum.felhomatrac.com/", "user_env": "LOGIN_0", "pass_env": "PASS_0"},
+        {"name": "Maverick Downtown Apartment", "url": "https://maverick-apartments.felhomatrac.org/", "user_env": "LOGIN_1", "pass_env": "PASS_1"},
+        {"name": "Maverick Budapest Soho", "url": "https://maverick-lodges.felhomatrac.org/", "user_env": "LOGIN_2", "pass_env": "PASS_2"},
+        {"name": "Giselle Vintage Doubles", "url": "https://maverick.felhomatrac.org/", "user_env": "LOGIN_3", "pass_env": "PASS_3"},
+        {"name": "Maverick Central Market", "url": "https://maverick-urban-lodge.felhomatrac.com/", "user_env": "LOGIN_4", "pass_env": "PASS_4"},
+        {"name": "Giselle Buda Castle", "url": "https://maverick-buda-castle.felhomatrac.com/", "user_env": "LOGIN_5", "pass_env": "PASS_5"},
     ]
 
     for comp in companies:
@@ -113,9 +114,10 @@ if __name__ == "__main__":
         p = os.environ.get(comp["pass_env"])
         
         if u and p:
-            file, c_name = run_fmatrac_logic(comp["name"], u, p)
+            file, c_name = run_fmatrac_logic(comp["name"], comp["url"], u, p)
             if file:
-                send_email(file, c_name)
-                os.remove(file)
+                send_email(file, c_name, target_email)
+                if os.path.exists(file):
+                    os.remove(file)
         else:
-            print(f"Hiba: Hiányzó login adatok ({comp['user_env']}) - Kihagyva.")
+            print(f"Kihagyva: {comp['name']} (Hiányzó login adatok)")
