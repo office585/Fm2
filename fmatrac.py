@@ -1,42 +1,37 @@
 import os
-import sys
-import time
 import smtplib
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
+import time
 
-def run_fmatrac_logic():
-    # --- DÁTUMOK ---
+def run_fmatrac_logic(company_name, login_user, login_pass):
     now = datetime.now()
-    start_date = datetime(now.year, 1, 1)  
-    end_date = now                         
+    start_date = datetime(now.year, 1, 1)
+    end_date = now
     
-    start_str = start_date.strftime("%Y-%m-%d")
-    end_str = end_date.strftime("%Y-%m-%d")
-    print(f"Lekérdezési időszak: {start_str} - {end_str}")
+    print(f"\n--- {company_name} feldolgozása kezdődik ---")
     
-    output_file = f"fmatrac_export_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    safe_name = company_name.replace(" ", "_").lower()
+    output_file = f"fmatrac_{safe_name}_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
     
     wb = Workbook()
     ws = wb.active
     ws.title = "adatok"
     ws.append(["Dátum", "Oszlop 1", "Oszlop 2", "Oszlop 3"])
 
-    email_login = "buki.bertold@mavericklodges.com"
-    password_login = "Abc123"
-
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+            context = browser.new_context(viewport={'width': 1280, 'height': 800})
+            page = context.new_page()
 
             page.goto("https://maverick-athenaeum.felhomatrac.com/")
 
             # LOGIN
-            page.fill("#user", email_login)
-            page.fill("#pwd", password_login)
+            page.fill("#user", login_user)
+            page.fill("#pwd", login_pass)
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
@@ -48,14 +43,9 @@ def run_fmatrac_logic():
             current_date = start_date
             while current_date <= end_date:
                 date_str = current_date.strftime("%Y-%m-%d")
-                print(f"Feldolgozás: {date_str}")
-
+                
                 date_input = page.locator("#billingDate")
                 date_input.wait_for(state="visible")
-
-                # Előző adat mentése ellenőrzéshez (JS trim() használatával)
-                first_row_locator = page.locator('div.row.size11.list-row div.col-2').first
-                old_date_text = first_row_locator.inner_text().strip() if first_row_locator.count() > 0 else ""
 
                 date_input.click()
                 page.keyboard.press("Control+A")
@@ -63,18 +53,9 @@ def run_fmatrac_logic():
                 page.keyboard.type(date_str)
                 page.keyboard.press("Enter")
 
-                # Félrekattintás az aktiváláshoz
                 page.locator('div.size14.b.lh30', has_text="Számlázás Monitoring").click()
-
-                # Várakozás a frissülésre (.trim() javítva)
-                try:
-                    page.wait_for_function(
-                        f'() => {{ const el = document.querySelector("div.row.size11.list-row div.col-2"); return !el || el.innerText.trim() !== "{old_date_text}"; }}',
-                        timeout=5000
-                    )
-                except: pass
-
-                time.sleep(1)
+                
+                time.sleep(1.5) # Biztonsági várakozás a frissülésre
 
                 # Adatmentés
                 rows = page.locator('div.row.size11.list-row')
@@ -92,21 +73,21 @@ def run_fmatrac_logic():
 
             browser.close()
             wb.save(output_file)
-            return output_file
+            return output_file, company_name
     except Exception as e:
-        print(f"Hiba a futtatás során: {e}")
-        return None
+        print(f"Hiba a(z) {company_name} futtatása során: {e}")
+        return None, company_name
 
-def send_email(file_path):
+def send_email(file_path, company_name):
     email_user = os.environ.get('EMAIL_USER')
     email_pass = os.environ.get('EMAIL_PASS')
     recipient = os.environ.get('EMAIL_RECIPIENT')
 
     msg = EmailMessage()
-    msg['Subject'] = f'FMATRAC Teljes Éves Riport - {datetime.now().strftime("%Y-%m-%d")}'
+    msg['Subject'] = f'FMATRAC Riport - {company_name} - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = email_user
     msg['To'] = recipient
-    msg.set_content("Szia!\n\nMellékelten küldöm a fmatrac rendszerből kinyert adatokat év elejétől a mai napig.")
+    msg.set_content(f"Szia!\n\nMellékelten küldöm a(z) {company_name} adatait év elejétől a mai napig.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=file_path)
@@ -114,9 +95,27 @@ def send_email(file_path):
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(email_user, email_pass)
         smtp.send_message(msg)
-    print("Email elküldve.")
+    print(f"Email elküldve: {company_name}")
 
 if __name__ == "__main__":
-    file = run_fmatrac_logic()
-    if file:
-        send_email(file)
+    # Az ÖSSZES cég listája (eredeti + 5 új)
+    companies = [
+        {"name": "Maverick Athenaeum",           "user_env": "LOGIN_0", "pass_env": "PASS_0"}, # Ez volt az eddigi
+        {"name": "Maverick Downtown Apartment", "user_env": "LOGIN_1", "pass_env": "PASS_1"},
+        {"name": "Maverick Budapest Soho",       "user_env": "LOGIN_2", "pass_env": "PASS_2"},
+        {"name": "Giselle Vintage Doubles",      "user_env": "LOGIN_3", "pass_env": "PASS_3"},
+        {"name": "Maverick Central Market",      "user_env": "LOGIN_4", "pass_env": "PASS_4"},
+        {"name": "Giselle Buda Castle",          "user_env": "LOGIN_5", "pass_env": "PASS_5"},
+    ]
+
+    for comp in companies:
+        u = os.environ.get(comp["user_env"])
+        p = os.environ.get(comp["pass_env"])
+        
+        if u and p:
+            file, c_name = run_fmatrac_logic(comp["name"], u, p)
+            if file:
+                send_email(file, c_name)
+                os.remove(file)
+        else:
+            print(f"Hiba: Hiányzó login adatok ({comp['user_env']}) - Kihagyva.")
