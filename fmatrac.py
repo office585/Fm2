@@ -36,13 +36,12 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
-            # Navigáció - Pontosított keresés a MEWS Számlázásra
-            # Megkeressük a Beállítások menüt (ha nem látja rögtön, várunk kicsit)
+            # Navigáció
             beallitasok = page.locator("a.nav-link.dropdown-toggle", has_text="Beállítások")
             beallitasok.wait_for(state="visible")
             beallitasok.click()
             
-            # Itt a JAVÍTÁS: A pontos linkre kattintunk, ami a MEWS Számlázáshoz tartozik
+            # Pontosított link keresés
             mews_gomb = page.locator('a[href*="billfuncs/billing"]')
             mews_gomb.first.wait_for(state="visible")
             mews_gomb.first.click()
@@ -56,8 +55,10 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
                 date_input = page.locator("#billingDate")
                 date_input.wait_for(state="visible")
 
+                # Itt volt a hiba, most már stabil:
                 first_row_loc = page.locator('div.row.size11.list-row div.col-2').first
-                old_val = first_row_loc.inner_text().strip() if first_row_locator_count := first_row_loc.count() > 0 else "empty"
+                row_exists = first_row_loc.count()
+                old_val = first_row_loc.inner_text().strip() if row_exists > 0 else "empty"
 
                 date_input.click()
                 page.keyboard.press("Control+A")
