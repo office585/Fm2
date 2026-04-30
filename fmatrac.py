@@ -12,7 +12,6 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
     end_date = now
     
     print(f"\n--- {company_name} feldolgozása ---")
-    print(f"URL: {url}")
     
     safe_name = company_name.replace(" ", "_").lower()
     output_file = f"fmatrac_{safe_name}_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -27,9 +26,8 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(viewport={'width': 1280, 'height': 800})
             page = context.new_page()
-            page.set_default_timeout(60000) # 1 perces türelmi idő
+            page.set_default_timeout(60000)
 
-            # Oldal megnyitása
             page.goto(url, wait_until="networkidle")
 
             # Bejelentkezés
@@ -38,47 +36,47 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
-            # Navigáció a pontos menüpontra (link alapján, hogy ne tévedjen el)
-            page.locator("a.nav-link.dropdown-toggle", has_text="Beállítások").click()
-            page.locator('a[href*="billing"]').wait_for(state="visible")
-            page.locator('a[href*="billing"]').click()
+            # Navigáció - Pontosított keresés a MEWS Számlázásra
+            # Megkeressük a Beállítások menüt (ha nem látja rögtön, várunk kicsit)
+            beallitasok = page.locator("a.nav-link.dropdown-toggle", has_text="Beállítások")
+            beallitasok.wait_for(state="visible")
+            beallitasok.click()
+            
+            # Itt a JAVÍTÁS: A pontos linkre kattintunk, ami a MEWS Számlázáshoz tartozik
+            mews_gomb = page.locator('a[href*="billfuncs/billing"]')
+            mews_gomb.first.wait_for(state="visible")
+            mews_gomb.first.click()
+            
             page.wait_for_load_state("networkidle")
 
             current_date = start_date
             while current_date <= end_date:
                 date_str = current_date.strftime("%Y-%m-%d")
                 
-                # Dátum mező megvárása
                 date_input = page.locator("#billingDate")
                 date_input.wait_for(state="visible")
 
-                # Aktuális első sor elmentése ellenőrzéshez
                 first_row_loc = page.locator('div.row.size11.list-row div.col-2').first
-                old_val = first_row_loc.inner_text().strip() if first_row_loc.count() > 0 else "empty"
+                old_val = first_row_loc.inner_text().strip() if first_row_locator_count := first_row_loc.count() > 0 else "empty"
 
-                # Dátum beírása
                 date_input.click()
                 page.keyboard.press("Control+A")
                 page.keyboard.press("Backspace")
                 page.keyboard.type(date_str)
                 page.keyboard.press("Enter")
 
-                # Kattintás a sarokba a fókusz elvételéhez (lekérdezés indítása)
                 page.mouse.click(0, 0) 
                 
-                # Intelligens várakozás: Várjuk, amíg az adat frissül (vagy max 5 mp)
                 try:
                     page.wait_for_function(
                         f'() => {{ const el = document.querySelector("div.row.size11.list-row div.col-2"); return !el || el.innerText.trim() !== "{old_val}"; }}',
-                        timeout=5000
+                        timeout=4000
                     )
                 except:
-                    pass # Ha nincs adat vagy lassú, megyünk tovább
+                    pass
 
-                # Rövid biztonsági pihenő (nem bugol be a naptár)
-                time.sleep(0.5)
+                time.sleep(0.4)
 
-                # Adatok kimentése
                 rows = page.locator('div.row.size11.list-row')
                 count = rows.count()
                 if count == 0:
@@ -111,7 +109,7 @@ def send_email(file_path, company_name, recipient_email):
     msg['Subject'] = f'FMATRAC Riport - {company_name} - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = email_user
     msg['To'] = recipient_email
-    msg.set_content(f"Szia!\n\nMellékelten küldöm a(z) {company_name} kinyert adatait év elejétől a mai napig.")
+    msg.set_content(f"Szia!\n\nMellékelten küldöm a(z) {company_name} kinyert adatait.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='octet-stream', filename=file_path)
@@ -119,7 +117,7 @@ def send_email(file_path, company_name, recipient_email):
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(email_user, email_pass)
         smtp.send_message(msg)
-    print(f"E-mail sikeresen elküldve: {company_name}")
+    print(f"E-mail elküldve: {company_name}")
 
 if __name__ == "__main__":
     target_email = os.environ.get('EMAIL_RECIPIENT')
@@ -136,12 +134,9 @@ if __name__ == "__main__":
     for comp in companies:
         u = os.environ.get(comp["user_env"])
         p = os.environ.get(comp["pass_env"])
-        
         if u and p:
             file, c_name = run_fmatrac_logic(comp["name"], comp["url"], u, p)
             if file:
                 send_email(file, c_name, target_email)
                 if os.path.exists(file):
                     os.remove(file)
-        else:
-            print(f"Kihagyva: {comp['name']} (Hiányzó környezeti változók)")
