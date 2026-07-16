@@ -36,7 +36,7 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
 
             page.goto(url, wait_until="networkidle")
 
-            # --- dblpayment figyelmeztetés lekezelése LOGIN ELŐTT ---
+            # Bejelentkezés előtti dblpayment figyelmeztetés lekezelése
             try:
                 popup = page.locator("#dblpayment")
                 if popup.count() > 0:
@@ -51,6 +51,22 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             page.fill("#pwd", login_pass)
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
+
+            # --- ÚJ LOGIKA: Ha a bejelentkezés után is ott ragadt a dblpayment ---
+            # Rákattintunk kétszer magára a kitakaró elemre, hogy aktiváljuk az onclick="$(this).remove();" eseményét
+            try:
+                overlay = page.locator("#dblpayment")
+                if overlay.count() > 0:
+                    print("A dblpayment elem még mindig blokkol. Kattintás az eltávolításhoz...")
+                    overlay.click()
+                    page.wait_for_timeout(200)
+                    
+                    # Biztonsági második kattintás, ha az első nem lett volna elég
+                    if overlay.count() > 0:
+                        overlay.click()
+                        page.wait_for_timeout(200)
+            except Exception as e:
+                print(f"Nem sikerült rákattintani a kitakaró elemre: {e}")
 
             # Navigáció
             beallitasok = page.locator(
