@@ -36,15 +36,15 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
 
             page.goto(url, wait_until="networkidle")
 
-            # Bejelentkezés előtti dblpayment figyelmeztetés lekezelése
+            # --- 1. VÉDELMI VONAL: Kiütés LOGIN ELŐTT ---
             try:
                 popup = page.locator("#dblpayment")
                 if popup.count() > 0:
-                    print("Figyelmeztető üzenet (dblpayment) észlelve, bezárás...")
-                    popup.click()
-                    page.wait_for_timeout(500)
-            except Exception as e:
-                print(f"Nem sikerült bezárni a figyelmeztetést: {e}")
+                    print("Zavaró ablak észlelve login előtt. Kiütés...")
+                    popup.click(force=True)
+                    page.wait_for_timeout(400)
+            except Exception:
+                pass
 
             # Bejelentkezés
             page.fill("#user", login_user)
@@ -52,21 +52,15 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
-            # --- ÚJ LOGIKA: Ha a bejelentkezés után is ott ragadt a dblpayment ---
-            # Rákattintunk kétszer magára a kitakaró elemre, hogy aktiváljuk az onclick="$(this).remove();" eseményét
+            # --- 2. VÉDELMI VONAL: Kiütés LOGIN UTÁN ---
             try:
-                overlay = page.locator("#dblpayment")
-                if overlay.count() > 0:
-                    print("A dblpayment elem még mindig blokkol. Kattintás az eltávolításhoz...")
-                    overlay.click()
-                    page.wait_for_timeout(200)
-                    
-                    # Biztonsági második kattintás, ha az első nem lett volna elég
-                    if overlay.count() > 0:
-                        overlay.click()
-                        page.wait_for_timeout(200)
-            except Exception as e:
-                print(f"Nem sikerült rákattintani a kitakaró elemre: {e}")
+                popup = page.locator("#dblpayment")
+                if popup.count() > 0:
+                    print("Zavaró ablak még mindig/újra itt van login után. Második kiütés...")
+                    popup.click(force=True)
+                    page.wait_for_timeout(400)
+            except Exception:
+                pass
 
             # Navigáció
             beallitasok = page.locator(
@@ -74,12 +68,15 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
                 has_text="Beállítások",
             )
             beallitasok.wait_for(state="visible")
-            beallitasok.click()
+            
+            # --- 3. VÉDELMI VONAL: Átütő kattintás (force=True) ---
+            # Nem érdekel minket ha takarásban van, akkor is rákattint a gomb helyére!
+            beallitasok.click(force=True)
 
             # Pontosított link keresés
             mews_gomb = page.locator('a[href*="billfuncs/billing"]')
             mews_gomb.first.wait_for(state="visible")
-            mews_gomb.first.click()
+            mews_gomb.first.click(force=True)
 
             page.wait_for_load_state("networkidle")
 
