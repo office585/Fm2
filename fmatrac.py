@@ -36,6 +36,16 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
 
             page.goto(url, wait_until="networkidle")
 
+            # --- dblpayment figyelmeztetés lekezelése LOGIN ELŐTT ---
+            try:
+                popup = page.locator("#dblpayment")
+                if popup.count() > 0:
+                    print("Figyelmeztető üzenet (dblpayment) észlelve, bezárás...")
+                    popup.click()
+                    page.wait_for_timeout(500)
+            except Exception as e:
+                print(f"Nem sikerült bezárni a figyelmeztetést: {e}")
+
             # Bejelentkezés
             page.fill("#user", login_user)
             page.fill("#pwd", login_pass)
@@ -48,10 +58,7 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
                 has_text="Beállítások",
             )
             beallitasok.wait_for(state="visible")
-            
-            # force=True segítségével a Playwright akkor is rákattint, 
-            # ha a dblpayment div vagy bármi más épp kitakarja az elemet
-            beallitasok.click(force=True)
+            beallitasok.click()
 
             # Pontosított link keresés
             mews_gomb = page.locator('a[href*="billfuncs/billing"]')
@@ -248,18 +255,11 @@ if __name__ == "__main__":
             )
 
             if file:
-                # E-mail küldés hibakezelő blokkban, hogy az esetleges 
-                # belépési hibák ne állítsák le a többi szállást.
-                try:
-                    send_email(
-                        file,
-                        c_name,
-                        target_email,
-                    )
-                except Exception as mail_err:
-                    print(f"Hiba történt a levél küldése közben ({c_name}): {mail_err}")
+                send_email(
+                    file,
+                    c_name,
+                    target_email,
+                )
 
-                # A generált fájlt mindenképpen töröljük a futtató környezetből, 
-                # akkor is, ha a levélküldés sikertelen volt.
                 if os.path.exists(file):
                     os.remove(file)
