@@ -48,7 +48,10 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
                 has_text="Beállítások",
             )
             beallitasok.wait_for(state="visible")
-            beallitasok.click()
+            
+            # force=True segítségével a Playwright akkor is rákattint, 
+            # ha a dblpayment div vagy bármi más épp kitakarja az elemet
+            beallitasok.click(force=True)
 
             # Pontosított link keresés
             mews_gomb = page.locator('a[href*="billfuncs/billing"]')
@@ -245,11 +248,18 @@ if __name__ == "__main__":
             )
 
             if file:
-                send_email(
-                    file,
-                    c_name,
-                    target_email,
-                )
+                # E-mail küldés hibakezelő blokkban, hogy az esetleges 
+                # belépési hibák ne állítsák le a többi szállást.
+                try:
+                    send_email(
+                        file,
+                        c_name,
+                        target_email,
+                    )
+                except Exception as mail_err:
+                    print(f"Hiba történt a levél küldése közben ({c_name}): {mail_err}")
 
+                # A generált fájlt mindenképpen töröljük a futtató környezetből, 
+                # akkor is, ha a levélküldés sikertelen volt.
                 if os.path.exists(file):
                     os.remove(file)
