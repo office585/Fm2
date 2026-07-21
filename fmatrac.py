@@ -1,4 +1,12 @@
-```python
+import os
+import smtplib
+import time
+from datetime import datetime, timedelta
+from email.message import EmailMessage
+from openpyxl import Workbook
+from playwright.sync_api import sync_playwright
+
+
 def run_fmatrac_logic(company_name, url, login_user, login_pass):
     now = datetime.now()
     start_date = datetime(now.year, 1, 1)
@@ -17,9 +25,11 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
+
             context = browser.new_context(
                 viewport={'width': 1280, 'height': 800}
             )
+
             page = context.new_page()
             page.set_default_timeout(60000)
 
@@ -31,61 +41,79 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
             page.keyboard.press("Enter")
             page.wait_for_load_state("networkidle")
 
-            # CSAK AZ ATHENAEUMNÁL:
-            # közvetlenül megnyitjuk a Számla Monitoring oldalt,
-            # hogy biztosan betöltődjön a billingDate mező.
+            # Navigáció
+            beallitasok = page.locator(
+                "a.nav-link.dropdown-toggle",
+                has_text="Beállítások"
+            )
+
+            beallitasok.wait_for(state="visible")
+            beallitasok.click()
+
+            # Pontosított link keresés
+            mews_gomb = page.locator(
+                'a[href*="billfuncs/billing"]'
+            )
+
+            mews_gomb.first.wait_for(state="visible")
+            mews_gomb.first.click()
+
+            page.wait_for_load_state("networkidle")
+
+            # Csak a Maverick Athenaeumnál:
+            # ellenőrizzük, hogy a billingDate mező valóban látható-e.
+            # Ha a normál navigáció után nem látható, közvetlenül
+            # megnyitjuk a számlamonitoring oldalt.
             if company_name == "Maverick Athenaeum":
-                billing_url = url.rstrip("/") + "/billfuncs/billing"
-
-                page.goto(
-                    billing_url,
-                    wait_until="domcontentloaded",
-                    timeout=60000
+                athenaeum_date_input = page.locator(
+                    'input#billingDate'
                 )
 
-                page.wait_for_load_state("networkidle")
+                try:
+                    athenaeum_date_input.wait_for(
+                        state="visible",
+                        timeout=10000
+                    )
 
-                ath_billing_date = page.locator(
-                    'input#billingDate.form-control.datepicker'
-                )
+                except Exception:
+                    print(
+                        "Athenaeum: a billingDate mező még nem látható, "
+                        "közvetlen oldalmegnyitás következik."
+                    )
 
-                # Először azt várjuk meg, hogy bekerüljön a HTML-be.
-                ath_billing_date.wait_for(
-                    state="attached",
-                    timeout=60000
-                )
+                    billing_url = (
+                        url.rstrip("/") + "/billfuncs/billing"
+                    )
 
-                # Odaviszi a képernyőt a mezőhöz.
-                ath_billing_date.scroll_into_view_if_needed()
+                    page.goto(
+                        billing_url,
+                        wait_until="domcontentloaded",
+                        timeout=60000
+                    )
 
-                # Ezután megvárjuk, hogy valóban látható legyen.
-                ath_billing_date.wait_for(
-                    state="visible",
-                    timeout=60000
-                )
+                    athenaeum_date_input = page.locator(
+                        'input#billingDate'
+                    )
+
+                    # Megvárjuk, hogy a mező bekerüljön az oldalba.
+                    athenaeum_date_input.wait_for(
+                        state="attached",
+                        timeout=60000
+                    )
+
+                    # Szükség esetén odagörgetünk.
+                    athenaeum_date_input.scroll_into_view_if_needed()
+
+                    # Végül megvárjuk, hogy ténylegesen látható legyen.
+                    athenaeum_date_input.wait_for(
+                        state="visible",
+                        timeout=60000
+                    )
 
                 print(
-                    "Athenaeum: a billingDate mező sikeresen "
-                    "betöltődött és látható."
+                    "Athenaeum: a billingDate mező látható, "
+                    "a feldolgozás indul."
                 )
-
-            else:
-                # A többi cégnél marad az eredeti navigáció.
-                beallitasok = page.locator(
-                    "a.nav-link.dropdown-toggle",
-                    has_text="Beállítások"
-                )
-                beallitasok.wait_for(state="visible")
-                beallitasok.click()
-
-                # Pontosított link keresés
-                mews_gomb = page.locator(
-                    'a[href*="billfuncs/billing"]'
-                )
-                mews_gomb.first.wait_for(state="visible")
-                mews_gomb.first.click()
-
-                page.wait_for_load_state("networkidle")
 
             current_date = start_date
 
@@ -118,22 +146,39 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
 
                 try:
                     page.wait_for_function(
-                        f'() => {{ const el = document.querySelector("div.row.size11.list-row div.col-2"); return !el || el.innerText.trim() !== "{old_val}"; }}',
+                        f'''() => {{
+                            const el = document.querySelector(
+                                "div.row.size11.list-row div.col-2"
+                            );
+                            return !el || el.innerText.trim() !== "{old_val}";
+                        }}''',
                         timeout=4000
                     )
-                except:
+                except Exception:
                     pass
 
                 time.sleep(0.4)
 
-                rows = page.locator('div.row.size11.list-row')
+                rows = page.locator(
+                    'div.row.size11.list-row'
+                )
+
                 count = rows.count()
 
                 if count == 0:
-                    ws.append([date_str, "NINCS ADAT", "", ""])
+                    ws.append([
+                        date_str,
+                        "NINCS ADAT",
+                        "",
+                        ""
+                    ])
+
                 else:
                     for i in range(count):
-                        cols = rows.nth(i).locator("div.col-2")
+                        cols = rows.nth(i).locator(
+                            "div.col-2"
+                        )
+
                         row_data = [date_str]
                         col_count = cols.count()
 
@@ -143,6 +188,7 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
                                 if j < col_count
                                 else ""
                             )
+
                             row_data.append(val)
 
                         ws.append(row_data)
@@ -157,4 +203,119 @@ def run_fmatrac_logic(company_name, url, login_user, login_pass):
     except Exception as e:
         print(f"Hiba történt ({company_name}): {e}")
         return None, company_name
-```
+
+
+def send_email(file_path, company_name, recipient_email):
+    email_user = os.environ.get('EMAIL_USER')
+    email_app_password = os.environ.get(
+        'EMAIL_APP_PASSWORD'
+    )
+
+    msg = EmailMessage()
+
+    msg['Subject'] = (
+        f'FMATRAC Riport - {company_name} - '
+        f'{datetime.now().strftime("%Y-%m-%d")}'
+    )
+
+    msg['From'] = email_user
+    msg['To'] = recipient_email
+
+    msg.set_content(
+        f"Szia!\n\n"
+        f"Mellékelten küldöm a(z) "
+        f"{company_name} kinyert adatait."
+    )
+
+    with open(file_path, 'rb') as f:
+        msg.add_attachment(
+            f.read(),
+            maintype='application',
+            subtype='octet-stream',
+            filename=file_path
+        )
+
+    with smtplib.SMTP_SSL(
+        'smtp.gmail.com',
+        465
+    ) as smtp:
+        smtp.login(
+            email_user,
+            email_app_password
+        )
+
+        smtp.send_message(msg)
+
+    print(f"E-mail elküldve: {company_name}")
+
+
+if __name__ == "__main__":
+    target_email = os.environ.get(
+        'EMAIL_RECIPIENT'
+    )
+
+    companies = [
+        {
+            "name": "Maverick Athenaeum",
+            "url": "https://maverick-athenaeum.felhomatrac.com/",
+            "user_env": "LOGIN_0",
+            "pass_env": "PASS_0"
+        },
+        {
+            "name": "Maverick Downtown Apartment",
+            "url": "https://maverick-apartments.felhomatrac.org/",
+            "user_env": "LOGIN_1",
+            "pass_env": "PASS_1"
+        },
+        {
+            "name": "Maverick Budapest Soho",
+            "url": "https://maverick-lodges.felhomatrac.org/",
+            "user_env": "LOGIN_2",
+            "pass_env": "PASS_2"
+        },
+        {
+            "name": "Giselle Vintage Doubles",
+            "url": "https://maverick.felhomatrac.org/",
+            "user_env": "LOGIN_3",
+            "pass_env": "PASS_3"
+        },
+        {
+            "name": "Maverick Central Market",
+            "url": "https://maverick-urban-lodge.felhomatrac.com/",
+            "user_env": "LOGIN_4",
+            "pass_env": "PASS_4"
+        },
+        {
+            "name": "Giselle Buda Castle",
+            "url": "https://maverick-buda-castle.felhomatrac.com/",
+            "user_env": "LOGIN_5",
+            "pass_env": "PASS_5"
+        },
+    ]
+
+    for comp in companies:
+        u = os.environ.get(
+            comp["user_env"]
+        )
+
+        p = os.environ.get(
+            comp["pass_env"]
+        )
+
+        if u and p:
+            file, c_name = run_fmatrac_logic(
+                comp["name"],
+                comp["url"],
+                u,
+                p
+            )
+
+            if file:
+                send_email(
+                    file,
+                    c_name,
+                    target_email
+                )
+
+                if os.path.exists(file):
+                    os.remove(file)
