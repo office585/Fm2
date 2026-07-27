@@ -23,7 +23,7 @@ jobs:
           pip install playwright openpyxl
           playwright install --with-deps chromium
 
-      - name: Az fmatrac script futtatása
+      - name: Az FMatrac script futtatása
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
@@ -31,15 +31,23 @@ jobs:
 
           LOGIN_0: ${{ secrets.LOGIN_0 }}
           PASS_0: ${{ secrets.PASS_0 }}
+
           LOGIN_1: ${{ secrets.LOGIN_1 }}
           PASS_1: ${{ secrets.PASS_1 }}
+
           LOGIN_2: ${{ secrets.LOGIN_2 }}
           PASS_2: ${{ secrets.PASS_2 }}
+
           LOGIN_3: ${{ secrets.LOGIN_3 }}
           PASS_3: ${{ secrets.PASS_3 }}
+
           LOGIN_4: ${{ secrets.LOGIN_4 }}
           PASS_4: ${{ secrets.PASS_4 }}
+
           LOGIN_5: ${{ secrets.LOGIN_5 }}
           PASS_5: ${{ secrets.PASS_5 }}
+
+          LOGIN_6: ${{ secrets.LOGIN_6 }}
+          PASS_6: ${{ secrets.PASS_6 }}
 
         run: python fmatrac.py
