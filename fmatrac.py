@@ -254,44 +254,50 @@ if __name__ == "__main__":
         'EMAIL_RECIPIENT'
     )
 
-    companies = [
-        {
-            "name": "Maverick Athenaeum",
-            "url": "https://maverick-athenaeum.felhomatrac.com/",
-            "user_env": "LOGIN_0",
-            "pass_env": "PASS_0"
-        },
-        {
-            "name": "Maverick Downtown Apartment",
-            "url": "https://maverick-apartments.felhomatrac.org/",
-            "user_env": "LOGIN_1",
-            "pass_env": "PASS_1"
-        },
-        {
-            "name": "Maverick Budapest Soho",
-            "url": "https://maverick-lodges.felhomatrac.org/",
-            "user_env": "LOGIN_2",
-            "pass_env": "PASS_2"
-        },
-        {
-            "name": "Giselle Vintage Doubles",
-            "url": "https://maverick.felhomatrac.org/",
-            "user_env": "LOGIN_3",
-            "pass_env": "PASS_3"
-        },
-        {
-            "name": "Maverick Central Market",
-            "url": "https://maverick-urban-lodge.felhomatrac.com/",
-            "user_env": "LOGIN_4",
-            "pass_env": "PASS_4"
-        },
-        {
-            "name": "Giselle Buda Castle",
-            "url": "https://maverick-buda-castle.felhomatrac.com/",
-            "user_env": "LOGIN_5",
-            "pass_env": "PASS_5"
-        },
-    ]
+companies = [
+    {
+        "name": "Maverick Athenaeum",
+        "url": "https://maverick-athenaeum.felhomatrac.com/",
+        "user_env": "LOGIN_0",
+        "pass_env": "PASS_0"
+    },
+    {
+        "name": "Maverick Downtown Apartment",
+        "url": "https://maverick-apartments.felhomatrac.org/",
+        "user_env": "LOGIN_1",
+        "pass_env": "PASS_1"
+    },
+    {
+        "name": "Maverick Budapest Soho",
+        "url": "https://maverick-lodges.felhomatrac.org/",
+        "user_env": "LOGIN_2",
+        "pass_env": "PASS_2"
+    },
+    {
+        "name": "Giselle Vintage Doubles",
+        "url": "https://maverick.felhomatrac.org/",
+        "user_env": "LOGIN_3",
+        "pass_env": "PASS_3"
+    },
+    {
+        "name": "Maverick Central Market",
+        "url": "https://maverick-urban-lodge.felhomatrac.com/",
+        "user_env": "LOGIN_4",
+        "pass_env": "PASS_4"
+    },
+    {
+        "name": "Giselle Buda Castle",
+        "url": "https://maverick-buda-castle.felhomatrac.com/",
+        "user_env": "LOGIN_5",
+        "pass_env": "PASS_5"
+    },
+    {
+        "name": "Amberlyn Management Kft.",
+        "url": "https://IDE_JON_AZ_AMBERLYN_FELHOMATRAC_URL/",
+        "user_env": "LOGIN_6",
+        "pass_env": "PASS_6"
+    },
+]
 
     for comp in companies:
         u = os.environ.get(
